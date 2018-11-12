@@ -1,0 +1,62 @@
+//@version=3
+
+// This Strategy allows Long trades when the following 3 conditions are met: 
+//
+//   i). price crosses from below to above the 13d EMA
+//  ii). the 13d EMA is below the 50d SMA and 
+// iii). the 50d SMA is below the 200d SMA
+// 
+// LONGs are entered when the three conditions above are met. 
+// SHORTs are ignored for now, however we will close the long position when price rises by 5%.
+
+strategy("13 EMA cross - Bullish with Timerange", shorttitle = " ", overlay=true, max_bars_back=2000)
+
+
+// --------------------------------------------------------------------------------------------------------------
+// EMA Fixed Variables
+// --------------------------------------------------------------------------------------------------------------
+srcClose = close                    //source is close
+resCustom = "1440"                  //Day in minutes
+// --------------------------------------------------------------------------------------------------------------
+
+
+// --------------------------------------------------------------------------------------------------------------
+// INPUT MAs
+// --------------------------------------------------------------------------------------------------------------
+fastEMA = input(defval = 13, type = integer, title = "Fast EMA, default 13", minval = 1, step = 1)
+institutionallyFastSMA = input(defval = 50, type = integer, title = "Institutional Fast SMA, default 50", minval = 1, step = 1)
+institutionallySlowSMA = input(defval = 200, type = integer, title = "Institutional Slow SMA, default 200", minval = 1, step = 1)
+// --------------------------------------------------------------------------------------------------------------
+
+
+// === INPUT BACKTEST RANGE ===
+FromMonth = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+FromDay   = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+FromYear  = input(defval = 2016, title = "From Year", minval = 2016)
+ToMonth   = input(defval = 10, title = "To Month", minval = 1, maxval = 12)
+ToDay     = input(defval = 17, title = "To Day", minval = 1, maxval = 31)
+ToYear    = input(defval = 2018, title = "To Year", minval = 2017)
+
+
+// === FUNCTION EXAMPLE ===
+start     = timestamp(FromYear, FromMonth, FromDay, 00, 00)  // backtest start window
+finish    = timestamp(ToYear, ToMonth, ToDay, 23, 59)        // backtest finish window
+window()  => time >= start and time <= finish ? true : false // create function "within window of time"
+
+
+// === SERIES SETUP ===
+isFastEMABelowInstitutionallyFastSMA = (ema(close, fastEMA) < sma(close, institutionallyFastSMA))
+isinstitutionallyFastSMABelowInstitutionallySlowSMA = (sma(close, institutionallyFastSMA) < sma(close, institutionallySlowSMA))
+isPriceCrossedAboveFastEMAFromBelow = crossover(close, sma(close, fastEMA))
+
+buySignal = (isPriceCrossedAboveFastEMAFromBelow and isFastEMABelowInstitutionallyFastSMA and isinstitutionallyFastSMABelowInstitutionallySlowSMA)
+sellSignal = crossunder(sma(close, fastEMA), sma(close, institutionallyFastSMA))
+
+// === EXECUTION ===
+strategy.entry("BUY", true, 1, when = (window() and buySignal)==true)  // buy long when "within window of time" AND crossover
+strategy.close("BUY", when = (window() and sellSignal)==true)                // sell long when "within window of time" AND crossunder
+//strategy.entry("S", strategy.short, when = (window() and short)==true)
+
+plot(ema(close, fastEMA), title = 'FastEMA', color = white, linewidth = 2, style = line)  // plot FastEMA
+plot(sma(close, institutionallyFastSMA), title = 'institutionallyFastSMA', color = aqua, linewidth = 2, style = line)    // plot institutionallyFastSMA
+plot(sma(close, institutionallySlowSMA), title = 'institutionallySlowSMA', color = red, linewidth = 3, style = line)    // plot institutionallySlowSMA
